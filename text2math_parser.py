@@ -182,7 +182,7 @@ def get_math_parsing(text):
       final = []
 
       for i in range(len(other_nouns)):
-        if other_nouns[i] not in covered:
+        if other_nouns[i] not in covered_words:
           if other_nouns[i] in modified_positions:
             final.append(str(modified_positions[other_nouns[i]]))
           else:
