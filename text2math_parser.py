@@ -15,7 +15,7 @@ from resources import dictionary, not_main, noun
 nlp = spacy.load("en_core_web_md")
 
 # Gets dependencies for token
-def get_dependencies(token, is_root, dependencies, indices, modified_positions, nouns_found, covered_words):
+def get_dependencies(token, is_root, dependencies, indices, modified_positions, nouns_found, indices_parsed):
   children = []
   indices.add(token.i)
 
@@ -27,25 +27,25 @@ def get_dependencies(token, is_root, dependencies, indices, modified_positions, 
   for dobj in children:
     if str(dobj) in dictionary:
       direct_objects = []
-      get_direct_objects(dobj, direct_objects, modified_positions, covered_words)
+      get_direct_objects(dobj, direct_objects, modified_positions, indices_parsed)
       
       m = {}
       m[str(dobj)] = direct_objects
       dependencies.append(m)
-      covered_words.append(dobj.i)
+      indices_parsed.append(dobj.i)
 
     elif dobj.pos_ == "NOUN" or dobj.pos_ == "NUM":
       nouns_found.append(dobj.i)
 
-    get_dependencies(dobj, False, dependencies, indices, modified_positions, nouns_found, covered_words)
+    get_dependencies(dobj, False, dependencies, indices, modified_positions, nouns_found, indices_parsed)
   
   return
 
 
 
 # Adds direct objects of token into direct_objects
-# Adds index of direct objects into covered_words
-def get_direct_objects(token, direct_objects, modified_positions, covered_words):
+# Adds index of direct objects into indices_parsed
+def get_direct_objects(token, direct_objects, modified_positions, indices_parsed):
   children = [child for child in token.children if (child.dep_ == "conj" or child.dep_ == "dobj" or 
                                                                     child.dep_ == "prep" or child.dep_ == "pobj")]
   for dobj in children:
@@ -56,9 +56,9 @@ def get_direct_objects(token, direct_objects, modified_positions, covered_words)
         else:
           direct_objects.append(str(dobj))
         
-        covered_words.append(dobj.i) 
+        indices_parsed.append(dobj.i) 
 
-      get_direct_objects(dobj, direct_objects, modified_positions, covered_words) # Recursive call on direct object
+      get_direct_objects(dobj, direct_objects, modified_positions, indices_parsed) # Recursive call on direct object
   
 
 # Returns [closest word in dictionary, score]
@@ -164,40 +164,41 @@ def get_math_parsing(text):
   doc_text = nlp(modified_string)
   # displacy.render(doc_text, style="dep", jupyter=True) # Uncomment on Google Colab to show graph
 
-  result = []
+  parsing = []  # Final parsing result
   indices_explored = set() # Keeps track of the words explored
   
   for token in doc_text:
     if str(token) in dictionary and token.i not in indices_explored:
       dependencies = []
-      other_nouns = []
-      covered_words = []
+      nouns_found = []
+      indices_parsed = []
 
-      get_dependencies(token, True, dependencies, indices_explored, modified_positions, other_nouns, covered_words)
+      get_dependencies(token, True, dependencies, indices_explored, modified_positions, nouns_found, indices_parsed)
 
       if len(dependencies) != 0:
-        result.append(dependencies)
+        parsing.append(dependencies)
 
       m = {}
-      final = []
+      result = []
 
-      for i in range(len(other_nouns)):
-        if other_nouns[i] not in covered_words:
-          if other_nouns[i] in modified_positions:
-            final.append(str(modified_positions[other_nouns[i]]))
+      for i in range(len(nouns_found)):
+        if nouns_found[i] not in indices_parsed:  # Check nouns that haven't been added to the parsing result
+          if nouns_found[i] in modified_positions:  # If noun was originally a number
+            result.append(str(modified_positions[nouns_found[i]]))
           else:
-            final.append(str(doc_text[other_nouns[i]]))
-      m[str(token)] = final
-      result.append([m])
+            result.append(str(doc_text[nouns_found[i]]))
+
+      m[str(token)] = result
+      parsing.append([m])
   
-  return result
+  return parsing
 
 
 
 if __name__ == "__main__":
   import sys
 
-  #default sentence
+  #default input
   test_string = "Subtract the product of 3 and 4 from the sum of 5 and 6 and 7"
 
   if len(sys.argv) > 1:
